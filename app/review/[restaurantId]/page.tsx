@@ -1,11 +1,13 @@
 "use client";
 
 // Screen 1 /review/[restaurantId]
-// Three controls only: star picker, comment box, submit.
-// The frontend's job: package 3 values and send them. The backend decides
-// everything else — and on a 400 we show the BACKEND'S message verbatim.
+// Three controls, now wearing the palette: stars turn amber, submit turns
+// brand-red, and the backend's error message still shows verbatim.
+// New presentation nicety: a live 0/500 counter (the length cap the backend
+// would enforce is unchanged — this counter is kindness, the API is the law).
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { SiteHeader } from "../../components/site-header";
 
 const ratingWord: Record<number, string> = {
   1: "Poor",
@@ -14,6 +16,8 @@ const ratingWord: Record<number, string> = {
   4: "Very good",
   5: "Excellent",
 };
+
+const COMMENT_LIMIT = 500;
 
 export default function ReviewPage() {
   const { restaurantId } = useParams<{ restaurantId: string }>();
@@ -27,12 +31,8 @@ export default function ReviewPage() {
   useEffect(() => {
     fetch(`/api/restaurants/${restaurantId}`)
       .then(async (r) => {
-        if (r.status === 404) {
-          setName("(not found)");
-          return;
-        }
-        const body = await r.json();
-        setName(body.name);
+        const body = await r.json().catch(() => null);
+        setName(body && typeof body.name === "string" ? body.name : "(not found)");
       })
       .catch(() => setName("(not found)"));
   }, [restaurantId]);
@@ -59,9 +59,11 @@ export default function ReviewPage() {
         return;
       }
       const body = await r.json().catch(() => null);
-      setError(body && typeof body.error === "string"
-        ? body.error
-        : `Request failed with status ${r.status}.`);
+      setError(
+        body && typeof body.error === "string"
+          ? body.error
+          : `Request failed with status ${r.status}.`
+      );
     } catch {
       setError("Could not reach the server.");
     } finally {
@@ -70,77 +72,94 @@ export default function ReviewPage() {
   }
 
   return (
-    <main className="mx-auto min-h-dvh max-w-[560px] px-6 py-14">
-      <p className="text-xs font-semibold tracking-widest text-stone-400 uppercase">
-        Writing a review for
-      </p>
-      <h1 className="mt-1 text-2xl font-semibold tracking-tight text-stone-900">
-        {name ?? "…"}
-      </h1>
-
-      <form onSubmit={onSubmit} className="mt-10">
-        <fieldset>
-          <legend className="text-sm font-medium text-stone-700">Rate it</legend>
-          <div className="mt-3 flex items-center gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-label={`${n} star${n > 1 ? "s" : ""}`}
-                aria-pressed={rating === n}
-                onClick={() => setRating(n)}
-                className={`h-10 w-10 rounded-lg text-lg ${
-                  rating === n
-                    ? "bg-amber-500/90 text-white"
-                    : rating >= n
-                      ? "bg-stone-400 text-white"
-                      : "bg-stone-100 text-stone-400 hover:bg-stone-200"
-                }`}
-              >
-                {rating >= n ? "★" : "☆"}
-              </button>
-            ))}
-            {rating > 0 && (
-              <span className="ml-2 text-sm text-stone-500">
-                {rating} / 5 · {ratingWord[rating]}
-              </span>
-            )}
-          </div>
-        </fieldset>
-
-        <label
-          htmlFor="comment"
-          className="mt-8 block text-sm font-medium text-stone-700"
-        >
-          Your review
-        </label>
-        <textarea
-          id="comment"
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          rows={4}
-          placeholder="One honest line is enough."
-          className="mt-3 w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-800 outline-none focus:border-stone-400"
-        />
-
-        {error && (
-          <p role="alert" className="mt-3 text-sm text-red-600">
-            {error}
+    <>
+      <SiteHeader />
+      <main className="mx-auto min-h-[calc(100dvh-56px)] max-w-[560px] px-6 pt-6 pb-20">
+        <section className="rounded-2xl border border-stone-200/70 bg-white p-6">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-stone-400">
+            Writing a review for
           </p>
-        )}
+          <h1 className="mt-1 text-xl font-bold tracking-tight text-stone-900">
+            {name ?? "…"}
+          </h1>
 
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="mt-6 w-full rounded-full bg-stone-900 py-3.5 text-sm font-medium text-stone-50 hover:bg-stone-700 disabled:cursor-not-allowed disabled:bg-stone-300"
-        >
-          {submitting ? "Submitting…" : "Submit review"}
-        </button>
+          <form onSubmit={onSubmit} className="mt-8">
+            <fieldset>
+              <legend className="text-sm font-semibold text-stone-700">
+                Rate it
+              </legend>
+              <div className="mt-3 flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                    aria-pressed={rating === n}
+                    onClick={() => setRating(n)}
+                    className={`h-12 w-12 rounded-xl text-2xl transition ${
+                      rating === n
+                        ? "bg-amber-400 text-white shadow-sm"
+                        : rating >= n
+                          ? "bg-amber-100 text-amber-500"
+                          : "bg-stone-100 text-stone-300 hover:bg-stone-200"
+                    }`}
+                  >
+                    {rating >= n ? "★" : "☆"}
+                  </button>
+                ))}
+              </div>
+              {rating > 0 && (
+                <p className="mt-3 flex items-center gap-2 text-sm">
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-700">
+                    {rating} / 5
+                  </span>
+                  <span className="text-stone-500">{ratingWord[rating]}</span>
+                </p>
+              )}
+            </fieldset>
 
-        <p className="mt-4 text-center text-xs text-stone-400">
-          Your review is public and cannot be edited or deleted.
-        </p>
-      </form>
-    </main>
+            <label
+              htmlFor="comment"
+              className="mt-8 block text-sm font-semibold text-stone-700"
+            >
+              Your review
+            </label>
+            <textarea
+              id="comment"
+              value={comment}
+              maxLength={COMMENT_LIMIT}
+              onChange={(e) => setComment(e.target.value)}
+              rows={4}
+              placeholder="One honest line is enough."
+              className="mt-3 w-full rounded-xl border border-stone-200 bg-cream px-4 py-3 text-sm outline-none focus:border-amber-400"
+            />
+            <p className="mt-1 text-right text-xs text-stone-400">
+              {comment.length}/{COMMENT_LIMIT}
+            </p>
+
+            {error && (
+              <p
+                role="alert"
+                className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-brand"
+              >
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="mt-6 w-full rounded-full bg-brand py-3.5 text-sm font-bold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
+            >
+              {submitting ? "Submitting…" : "Submit review"}
+            </button>
+
+            <p className="mt-4 text-center text-xs text-stone-400">
+              Your review is public and cannot be edited or deleted. 🔒
+            </p>
+          </form>
+        </section>
+      </main>
+    </>
   );
 }
