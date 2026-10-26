@@ -6,9 +6,12 @@
 //   reviews       = every review EXCEPT the latest, newest first (no duplicates on screen)
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.DATABASE_URL);
+// Tell TypeScript what to do if the secret is missing: die loudly instead of
+// making mystery requests to a null database. This same error appears as a
+// build failure on Vercel when DATABASE_URL is not configured.
+const sql = neon(process.env.DATABASE_URL!);
 
-export async function GET(_request, { params }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const restaurantId = Number(id);
 
@@ -42,15 +45,17 @@ export async function GET(_request, { params }) {
 
   // Facts in, newest first. The latest stays out of reviews so the
   // highlighted "latest review" block isn't printed twice.
-  const allReviews = await sql.query(
+  type ReviewRow = { id: number; rating: number; comment: string; created_at: string | Date };
+  // The driver types rows loosely; we know the shape our SELECT guarantees.
+  const allReviews = (await sql.query(
     `SELECT id, rating, comment, created_at
      FROM reviews
      WHERE restaurant_id = $1
      ORDER BY created_at DESC`,
     [restaurantId]
-  );
+  )) as ReviewRow[];
 
-  const toReview = (r) => ({
+  const toReview = (r: ReviewRow) => ({
     id: r.id,
     rating: r.rating,
     comment: r.comment,

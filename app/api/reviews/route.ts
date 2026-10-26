@@ -8,9 +8,12 @@
 // Then inserts exactly ONE row. Nothing is computed or stored besides the fact itself.
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.DATABASE_URL);
+// Tell TypeScript what to do if the secret is missing: die loudly instead of
+// making mystery requests to a null database. This same error appears as a
+// build failure on Vercel when DATABASE_URL is not configured.
+const sql = neon(process.env.DATABASE_URL!);
 
-export async function POST(request) {
+export async function POST(request: Request) {
   let body;
   try {
     body = await request.json();
